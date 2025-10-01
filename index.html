@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UltraChat Live</title>
+<style>
+/* --- Общие стили --- */
+body {
+  margin: 0; font-family: 'Segoe UI', sans-serif;
+  display: flex; height: 100vh; background: #0f1115; color: #eee;
+  overflow: hidden;
+}
+/* --- Сайдбар --- */
+.sidebar {
+  width: 280px; background: #1b1b1f; display: flex; flex-direction: column;
+  border-right: 1px solid #2d2d33; box-shadow: 2px 0 10px rgba(0,0,0,0.4);
+  transition: all 0.3s ease;
+}
+.logo {
+  text-align: center; font-size: 26px; font-weight: bold;
+  padding: 25px 0; border-bottom: 1px solid #2d2d33;
+  letter-spacing: 1px; color: #2c7a2c;
+}
+.user-list {
+  flex: 1; overflow-y: auto; padding: 15px; transition: all 0.3s ease;
+}
+.user {
+  display: flex; align-items: center; gap: 14px; padding: 14px 18px;
+  cursor: pointer; border-radius: 14px; transition: 0.2s;
+  background: #1b1b1f; margin-bottom: 10px;
+  box-shadow: 0 0 0 rgba(0,0,0,0);
+}
+.user:hover {background: #2a2a2e; box-shadow: 0 4px 10px rgba(0,0,0,0.5);}
+.user.active {background: #2c2f33; box-shadow: 0 4px 12px rgba(0,0,0,0.7);}
+.avatar {
+  width: 50px; height: 50px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: bold; font-size: 18px; background: #3a3a3a; color: #fff;
+}
+.online-indicator {
+  width: 14px; height: 14px; border-radius: 50%; background: #2c7a2c;
+  margin-left: auto;
+}
+.sidebar button {
+  margin: 15px; padding: 12px; border: none; border-radius: 16px;
+  cursor: pointer; background: #2a2a2e; color: #eee; font-weight: bold;
+  transition: 0.2s;
+}
+.sidebar button:hover {background: #2c7a2c; color: #fff;}
+
+/* --- Основная область чата --- */
+.chat-container {
+  flex: 1; display: flex; flex-direction: column; background: #121217;
+  transition: all 0.3s ease;
+}
+.chat-header {
+  padding: 18px; font-weight: bold; font-size: 20px; border-bottom: 1px solid #2d2d33;
+  display: flex; justify-content: space-between; align-items: center;
+  background: #1c1c20; box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  color: #2c7a2c; transition: all 0.3s ease;
+}
+.chat-box {
+  flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;
+  background: #121217; transition: all 0.3s ease;
+}
+.msg {
+  padding: 14px 20px; border-radius: 22px; max-width: 70%; font-size: 15px;
+  opacity: 0; transform: translateY(12px); transition: 0.3s ease, transform 0.3s ease;
+  word-wrap: break-word;
+}
+.msg.show {opacity: 1; transform: translateY(0);}
+.my-msg {align-self: flex-end; background: #2c7a2c; color: #fff; box-shadow: 0 3px 8px rgba(0,0,0,0.5);}
+.their-msg {align-self: flex-start; background: #2a2a2e; color: #eee;
+  display: flex; align-items: center; gap: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.5);}
+.their-msg .avatar {width: 38px; height: 38px; font-size: 16px;}
+
+/* --- Индикатор печати --- */
+.typing {font-style: italic; color: #aaa; font-size: 13px; margin-left: 60px; animation: blink 1s infinite;}
+@keyframes blink {0%,100%{opacity:0.2;}50%{opacity:1;}}
+
+/* --- Поле ввода --- */
+.chat-input-container {
+  display: flex; padding: 14px; gap: 12px; border-top: 1px solid #2d2d33; background: #1c1c20;
+}
+.chat-input {
+  flex: 1; padding: 14px; border-radius: 26px; border: 1px solid #2d2d33;
+  background: #2a2a2e; color: #fff; outline: none; font-size: 15px;
+  transition: all 0.2s ease;
+}
+.chat-input:focus {border-color: #2c7a2c;}
+.send-btn {
+  padding: 14px 22px; border: none; border-radius: 26px; background: #2c7a2c;
+  color: #fff; cursor: pointer; font-weight: bold; transition: 0.2s;
+}
+.send-btn:hover {background: #1f5b1b; transform: scale(1.05);}
+
+/* --- Модальные окна --- */
+.auth-container, #profileModal {
+  position: fixed; top:0; left:0; right:0; bottom:0;
+  display: flex; justify-content: center; align-items: center;
+  background: rgba(0,0,0,0.85); z-index: 1000;
+}
+.auth-box, .profileBox {
+  background: #1c1c20; padding: 30px; border-radius: 18px;
+  display: flex; flex-direction: column; gap: 15px; width: 320px;
+  animation: modalFade 0.3s ease;
+}
+@keyframes modalFade {from{opacity:0; transform:scale(0.95);} to{opacity:1; transform:scale(1);}}
+
+/* --- Кнопка очистки пользователей --- */
+.clear-btn {
+  background: #b71c1c;
+}
+.clear-btn:hover {background: #7f0000; transform: scale(1.05);}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="logo">UltraChat</div>
+  <div class="user-list" id="userList"></div>
+  <button onclick="openProfile()">Профиль</button>
+  <button onclick="logout()">Выйти</button>
+</div>
+
+<div class="chat-container">
+  <div class="chat-header" id="chatHeader">
+    <span id="chatTitle">Выберите пользователя</span>
+    <button id="backBtn" style="display:none;background:none;border:none;color:#2c7a2c;font-weight:bold;cursor:pointer;">← Назад</button>
+  </div>
+  <div class="chat-box" id="chatBox"></div>
+  <div class="chat-input-container">
+    <input class="chat-input" id="messageInput" placeholder="Введите сообщение...">
+    <button class="send-btn" onclick="sendMessage()">Отправить</button>
+  </div>
+</div>
+
+<div class="auth-container" id="authContainer">
+  <div class="auth-box">
+    <input type="text" id="authUsername" placeholder="Логин">
+    <input type="password" id="authPassword" placeholder="Пароль">
+    <button onclick="register()">Регистрация</button>
+    <button onclick="login()">Войти</button>
+  </div>
+</div>
+
+<div id="profileModal">
+  <div class="profileBox">
+    <h3>Мой профиль</h3>
+    <label>Никнейм</label>
+    <input type="text" id="profileName">
+    <label>Статус</label>
+    <input type="text" id="profileStatus" placeholder="Например: в сети">
+    <label>Аватар</label>
+    <select id="profileAvatarSelect">
+      <option value="gradient">ASCII</option>
+      <option value="meme1">😂</option>
+      <option value="meme2">😎</option>
+    </select>
+    <button onclick="saveProfile()">Сохранить</button>
+    <button onclick="closeProfile()">Закрыть</button>
+  </div>
+</div>
+
+<!-- Звук уведомления -->
+<audio id="notifSound" src="https://www.soundjay.com/buttons/sounds/button-3.mp3" preload="auto"></audio>
+
+<script>
+// --- Данные и переменные ---
+let currentUser=null, selectedUser=null;
+let users=JSON.parse(localStorage.getItem("users"))||[];
+let messages=JSON.parse(localStorage.getItem("messages"))||{};
+let lastActivity=new Date().getTime();
+
+const authContainer=document.getElementById("authContainer");
+const chatBox=document.getElementById("chatBox");
+const chatHeader=document.getElementById("chatHeader");
+const userList=document.getElementById("userList");
+const msgInput=document.getElementById("messageInput");
+const backBtn=document.getElementById("backBtn");
+const notifSound=document.getElementById("notifSound");
+
+function saveData(){localStorage.setItem("users",JSON.stringify(users)); localStorage.setItem("messages",JSON.stringify(messages));}
+
+// --- Регистрация ---
+function register(){
+  const username=document.getElementById("authUsername").value.trim();
+  const password=document.getElementById("authPassword").value.trim();
+  if(!username||!password){alert("Введите логин и пароль!"); return;}
+  if(users.find(u=>u.username===username)){alert("Такой пользователь уже существует!"); return;}
+  users.push({username,password,avatarColor:"#4A4A4A",avatarType:"gradient",status:"в сети",online:true});
+  saveData(); alert("Регистрация успешна! Войдите.");
+}
+
+// --- Вход ---
+function login(){
+  const username=document.getElementById("authUsername").value.trim();
+  const password=document.getElementById("authPassword").value.trim();
+  const user=users.find(u=>u.username===username && u.password===password);
+  if(!user){alert("Неверный логин или пароль!"); return;}
+  currentUser=username;
+  user.online=true;
+  user.status="в сети";
+  saveData();
+  authContainer.style.display="none";
+  renderUsers();
+}
+
+// --- Выход ---
+function logout(){
+  if(currentUser){
+    const user = users.find(u=>u.username===currentUser);
+    if(user){user.online=false; user.status="не в сети";}
+    saveData();
+  }
+  currentUser=null; selectedUser=null; chatBox.innerHTML="";
+  chatHeader.querySelector("#chatTitle").textContent="Выберите пользователя";
+  backBtn.style.display="none"; authContainer.style.display="flex";
+  renderUsers();
+}
+
+// --- Список пользователей ---
+function renderUsers(){
+  userList.innerHTML="";
+  users.filter(u=>u.username!==currentUser).forEach(u=>{
+    const div=document.createElement("div");
+    div.className="user";
+    let avatarContent=u.avatarType==="gradient"?u.username[0].toUpperCase():(u.avatarType==="meme1"?"😂":"😎");
+    div.innerHTML=`<div class="avatar">${avatarContent}</div><div style="display:flex;flex-direction:column;"><span>${u.username}</span><small style="color:#2c7a2c;">${u.status||""}</small></div>`;
+    const onlineDot=document.createElement("div"); onlineDot.className="online-indicator"; if(u.online) div.appendChild(onlineDot);
+    div.onclick=()=>{selectUser(u.username);};
+    if(u.username===selectedUser) div.classList.add("active");
+    userList.appendChild(div);
+  });
+
+  // Кнопка очистки только для Hells
+  const existingBtn = document.getElementById("clearBtn");
+  if(currentUser==="Hells" && !existingBtn){
+    const btn = document.createElement("button");
+    btn.id = "clearBtn";
+    btn.className = "clear-btn";
+    btn.textContent = "Очистить всех пользователей";
+    btn.onclick = clearAllUsers;
+    document.querySelector(".sidebar").appendChild(btn);
+  }
+  if(currentUser!=="Hells" && existingBtn){existingBtn.remove();}
+}
+
+// --- Выбор пользователя ---
+function selectUser(username){
+  selectedUser=username;
+  chatHeader.querySelector("#chatTitle").textContent="Чат с "+username;
+  backBtn.style.display="inline";
+  renderUsers();
+  renderMessages();
+}
+
+backBtn.onclick=()=>{
+  selectedUser=null;
+  chatHeader.querySelector("#chatTitle").textContent="Выберите пользователя";
+  backBtn.style.display="none";
+  chatBox.innerHTML="";
+  renderUsers();
+}
+
+// --- Сообщения ---
+function renderMessages(){
+  chatBox.innerHTML="";
+  if(!selectedUser) return;
+  const chatId=[currentUser,selectedUser].sort().join("_");
+  const msgs=messages[chatId]||[];
+  msgs.forEach((m,index)=>{
+    const div=document.createElement("div");
+    if(m.sender===currentUser){
+      div.className="msg my-msg"; div.textContent=m.text;
+      notifSound.play(); // звук для отправителя
+    } else {
+      div.className="msg their-msg";
+      div.innerHTML=`<div class="avatar">${users.find(u=>u.username===m.sender)?.avatarType==="meme1"?"😂":users.find(u=>u.username===m.sender)?.avatarType==="meme2"?"😎":m.sender[0].toUpperCase()}</div><div>${m.text}</div>`;
+      notifSound.play(); // звук для входящего
+    }
+    chatBox.appendChild(div);
+    setTimeout(()=>{div.classList.add("show");}, index*50);
+  });
+  chatBox.scrollTop=chatBox.scrollHeight;
+}
+
+// --- Отправка сообщения ---
+function sendMessage(){
+  if(!selectedUser){alert("Выберите пользователя!"); return;}
+  const text=msgInput.value.trim(); if(!text) return;
+  const chatId=[currentUser,selectedUser].sort().join("_");
+  if(!messages[chatId]) messages[chatId]=[];
+  messages[chatId].push({sender:currentUser,text});
+  saveData(); msgInput.value=""; renderMessages();
+}
+
+// --- Профиль ---
+function openProfile(){const user=users.find(u=>u.username===currentUser); if(!user) return; document.getElementById('profileName').value=user.username; document.getElementById('profileStatus').value=user.status||""; document.getElementById('profileAvatarSelect').value=user.avatarType||"gradient"; document.getElementById('profileModal').style.display="flex";}
+function closeProfile(){document.getElementById('profileModal').style.display="none";}
+function saveProfile(){
+  const user=users.find(u=>u.username===currentUser); if(!user) return;
+  const newName=document.getElementById('profileName').value.trim();
+  const newStatus=document.getElementById('profileStatus').value.trim();
+  const avatarType=document.getElementById('profileAvatarSelect').value;
+  if(!newName){alert("Никнейм не может быть пустым"); return;}
+  if(newName!==currentUser && users.find(u=>u.username===newName)){alert("Такой ник уже существует!"); return;}
+  user.username=newName; user.status=newStatus; user.avatarType=avatarType;
+  saveData(); currentUser=newName; renderUsers(); renderMessages(); closeProfile(); alert("Профиль обновлён!");
+}
+
+// --- Очистка пользователей ---
+function clearAllUsers(){
+  if(!confirm("Вы уверены?")) return;
+  users=[]; messages={};
+  localStorage.removeItem("users"); localStorage.removeItem("messages");
+  currentUser=null; selectedUser=null; chatBox.innerHTML="";
+  chatHeader.querySelector("#chatTitle").textContent="Выберите пользователя";
+  authContainer.style.display="flex";
+  renderUsers();
+  alert("Все пользователи удалены!");
+}
+
+// --- Авто-обновление ---
+setInterval(()=>{
+  if(currentUser){
+    users.forEach(u=>{if(u.username!==currentUser && (!u.status||u.online)) u.status="в сети";});
+    renderUsers();
+  }
+},3000);
+
+// --- Бездействие ---
+setInterval(()=>{
+  if(currentUser){
+    const now=new Date().getTime();
+    if(now-lastActivity>15000){
+      const user=users.find(u=>u.username===currentUser);
+      if(user){user.status="не в сети"; user.online=false; saveData(); renderUsers();}
+    }
+  }
+},3000);
+</script>
+
+</body>
+</html>
